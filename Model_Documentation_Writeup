@@ -1,0 +1,13 @@
+To start, I began with the basic code from the Project Q&A to have the car follow a lane with a desired speed(ref_vel) and in a particular lane(lane).
+
+At first, I was getting some max acceleration exceeded for some lane changes - especially when the vehicle was already on a curve. To fix this I made my next waypoints for the spline go from the actual reference point(end of the last path) to the desired lane gradually by specifying fractions of the change in d(Frenet) that was being requested.
+
+Another change I made in hopes of smoothing out the deceleration when behind another vehicle, was to decrease the number of points in my path so I wasn't looking out as far in each path(even though my spline did) so I wasn't locked into as many points and had more time to react. I also used a thresholded deceleration. If the car was within 10m of the reference point, I slowed down at -.5 whereas if it was between 10 and 27, I only decreased the ref_vel by .35.
+
+To plan the behaivior of the car, I used a cost function consisting of 2 main parts. The first was checking to see if a accessing another lane was possible. If there was another car in the way of a lane change, I made that cost prohibitively high. For the second part, I would identify the next car in each lane and then add 1 minus the ratio of that cars speed to the speed limit to the cost for that lane. For all of these calculations I used predicted values 1.5 seconds into the future to take into account all vehicles position and velocity. Additionally I added a small cost to lanes the car wasn't already in so that if 2 lanes were similar in cost, it would prefer the lane it is already in.
+
+When executing lane changes, I limited the car to only making one lane change every 100m because it was possible for the costs to flip back and forth quickly between adjascent lanes and then the car would not complete its lane change and just strattle the lane line.
+
+Sometimes it takes lane changes very gently and gets the "Outside of Lane" warning but I would prefer it be "too smooth" of a change.
+
+If I were going to improve the implementation I would first start with the speed control and try only using at most 5 points from the previous path for smoothness so that it could react more quickly to another car in front of it. I would also try to use a PID controller to maintain a specific distance that is based off speed.

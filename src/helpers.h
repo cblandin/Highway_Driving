@@ -154,4 +154,65 @@ vector<double> getXY(double s, double d, const vector<double> &maps_s,
   return {x,y};
 }
 
+//Cost function
+
+vector<double> lane_cost(double car_s, double car_d, double car_speed, int car_lane, const vector<vector<double>> &sensor_fusion, const vector<double> &map_waypoints_x, const vector<double> &map_waypoints_y){
+  vector<double> cost(3,0.0);
+  for(int i = 0; i < 3; i++){
+    if(abs(i - car_lane) == 1){
+      cost[i] += .1; // if lanes are similar, prefer the one you're in
+    }
+    else if(abs(i - car_lane) == 2){
+      cost[i] += .2; // if it requires 2 lane changes, even less prefered;
+    }
+  }
+  vector<int> next_car_in_lane(3, -1);
+  vector<double> next_car_delta_s(3,500);
+  for(int i = 0; i < sensor_fusion.size(); i++){
+    double dt = 1.5; //project remote vehicle 1.5s into future
+
+    double projected_host_s = car_s + dt*car_speed; //assumption that almost all of the cars velocity is in the s direction
+    int remote_lane = floor(sensor_fusion[i][6]/4.0);
+
+    double vx = sensor_fusion[i][3];
+    double vy = sensor_fusion[i][4];
+    double remote_speed = sqrt(vx*vx + vy*vy);
+    double remote_s = sensor_fusion[i][5] + dt*remote_speed; //projected_f[0];
+    if(remote_lane != car_lane && (remote_s - projected_host_s) < 30 && (remote_s - projected_host_s) > -20){ // If lane change isn't possible make cost prohibitively high
+      cost[remote_lane] += 2;
+      if(remote_lane == 1){ //don't allow lane changes even if far lane is prefered because you have to go through the middle
+        if (car_lane == 0){
+          cost[2] += 2;
+        }
+        else if(car_lane == 2){
+          cost[0] += 2;
+        }
+      }
+    }
+    if(remote_s > (projected_host_s) && remote_s < (projected_host_s + 100)){
+      if((remote_s - car_s) < next_car_delta_s[remote_lane]){ // find the closest car in each lane (must be in front)
+        next_car_delta_s[remote_lane] = remote_s - car_s;
+        next_car_in_lane[remote_lane] = i;
+      }
+    }
+  }
+
+  double total_cost = 0;
+  for(int i = 0; i < 3; i++){
+    if (next_car_in_lane[i]!= -1){
+      double vx = sensor_fusion[next_car_in_lane[i]][3];
+      double vy = sensor_fusion[next_car_in_lane[i]][4];
+      double remote_speed = sqrt(vx*vx + vy*vy);
+      cost[i] += 1.0 - remote_speed*2.24/50.0; // increase cost based on ratio of nearest car to the speed limit
+    }
+    total_cost += cost[i];
+  }
+  for(int i = 0; i < 3; i++){ // normalize costs to sum to 1
+    cost[i] = cost[i]/total_cost;
+  }
+
+  return cost;
+}
+    
+
 #endif  // HELPERS_H
